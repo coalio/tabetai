@@ -1,6 +1,7 @@
 local tabetai = {
-    tokens = {
+    context = {
         keywords = {
+            ["else"] = "condition_case",
             ["elseif"] = "condition",
             ["end"] = "",
             ["for"] = "loop",
@@ -51,17 +52,17 @@ local function arrow_function()
 end
 
 local function keywords()
-    if tabetai.tokens.keywords[state.current] then
+    if tabetai.context.keywords[state.current] then
         state.hold = false
-        state.context = tabetai.tokens.keywords[state.current]
-    end
-
-    if (state.current:match(tabetai.pattern["between_()"]) or state.current == "function") and state.context == "" then
-        state.context = "function"
+        state.context = tabetai.context.keywords[state.current]
     end
 end
 
 local function operators()
+    if state.current:match(tabetai.pattern["between_()"]) and state.context == "" then
+        state.context = "function"
+    end
+
     if state.current:match(tabetai.pattern["arrow"]) then
         state.context = "function"
         state.chunk = arrow_function()
@@ -89,11 +90,12 @@ local function operators()
     end
 
     if state.current:match(tabetai.pattern["left_brace"]) and state.hold == false and state.skip == false then
-        if state.context == "function" or state.context == "loop" or state.context == "condition" then
+        if state.context ~= "" then
             state.chunk =
                 state.current:gsub(
                 "{",
-                state.context == "function" and " " or (state.context == "loop" and " do " or " then ")
+                (state.context == "function" or state.context == "condition_case") and " "
+                or (state.context == "loop" and " do " or " then ")
             )
 
             if state.context == 'declaration' then
@@ -108,10 +110,8 @@ local function operators()
         state.level = state.level + 1
     end
 
-    if state.current:match("}") and state.hold == false and state.skip == false then
-        if state.context == "function"
-          or state.context == "loop" 
-          or state.context == "condition"
+    if state.current:match(tabetai.pattern['right_brace']) and state.hold == false and state.skip == false then
+        if state.context ~= ""
           or state.level_context[state.level] == "block"
           and state.level_context[state.level] ~= "skip_block"
         then
@@ -125,7 +125,7 @@ local function operators()
         state.level = state.level - 1
     end
 
-    if state.current:match("%)") then
+    if state.current:match(tabetai.pattern['right_parenthesis']) then
         state.hold = false
     end
 end
