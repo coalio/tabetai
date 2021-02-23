@@ -12,18 +12,20 @@ local tabetai = {
     pattern = {
         ["a_to_z"] = "[a-zA-Z]",
         ["arrow"] = "%=%>",
-        ["between_()"] = "%((.-)%)",
+        ["between_parentheses"] = "%((.-)%)",
+        ["define_directive"] = "#define \"*([%w%s]+)\"* (.-)[\r\n]",
         ["empty_braces"] = "%{%}",
-        ["format_word"] = "%s",
+        ["equal_sign"] = "^=$",
         ["format_function_args"] = "function(%s)",
+        ["format_word"] = "%s",
         ["function"] = "function%s*%((.-)%)",
+        ["include_directive"] = "#include \"(.-)\"[\r\n]",
         ["join_by_space"] = "%s %s",
         ["left_brace"] = "%{",
         ["left_parenthesis"] = "%(",
         ["match_word"] = "(%S+)",
         ["right_brace"] = "%}",
         ["right_parenthesis"] = "%)",
-        ["equal_sign"] = '^=$'
     }
 }
 
@@ -46,9 +48,36 @@ local function init_state()
     }
 end
 
+local function preprocessor()
+    local directives = {
+        ["include"] = function(source)
+            local source_file = io.open(source, "r")
+            if source_file then
+                return source_file:read("*a") .. "\n"
+            else
+                return "\n"
+            end
+        end,
+        ["define"] = function(find, replace)
+            state.source = state.source:gsub("%f[%a]"..find.."%f[%A]", replace)
+        end
+    }
+
+    state.source = state.source:gsub(tabetai.pattern['include_directive'], directives["include"])
+
+    local next_def = state.source:gmatch(tabetai.pattern['define_directive'])
+    ::definitions::
+        local find, replace = next_def()
+        if not find or not replace then goto exit_definitions end
+        directives["define"](find, replace)
+    goto definitions
+    ::exit_definitions::
+
+    state.source = state.source:gsub(tabetai.pattern['define_directive'], "")
+end
 local function arrow_function()
     local pos = state.to - ((state.pending or ""):len() + (state.pending and state.current or ""):len())
-    return (tabetai.pattern["format_function_args"]):format(state.source:match(tabetai.pattern["between_()"], pos))
+    return (tabetai.pattern["format_function_args"]):format(state.source:match(tabetai.pattern["between_parentheses"], pos))
 end
 
 local function keywords()
@@ -59,7 +88,7 @@ local function keywords()
 end
 
 local function operators()
-    if state.current:match(tabetai.pattern["between_()"]) and state.context == "" then
+    if state.current:match(tabetai.pattern["between_parentheses"]) and state.context == "" then
         state.context = "function"
     end
 
@@ -98,7 +127,7 @@ local function operators()
                 or (state.context == "loop" and " do " or " then ")
             )
 
-            if state.context == 'declaration' then
+            if state.context == "declaration" then
               state.level_context[state.level + 1] = "skip_block"
             else
               state.level_context[state.level + 1] = "block"
@@ -110,7 +139,7 @@ local function operators()
         state.level = state.level + 1
     end
 
-    if state.current:match(tabetai.pattern['right_brace']) and state.hold == false and state.skip == false then
+    if state.current:match(tabetai.pattern["right_brace"]) and state.hold == false and state.skip == false then
         if state.context ~= ""
           or state.level_context[state.level] == "block"
           and state.level_context[state.level] ~= "skip_block"
@@ -125,7 +154,7 @@ local function operators()
         state.level = state.level - 1
     end
 
-    if state.current:match(tabetai.pattern['right_parenthesis']) then
+    if state.current:match(tabetai.pattern["right_parenthesis"]) then
         state.hold = false
     end
 end
@@ -149,12 +178,16 @@ tabetai.close = close
 tabetai.keywords = keywords
 tabetai.next = next
 tabetai.operators = operators
+tabetai.preprocessor = preprocessor
 tabetai.strip_comments = strip_comments
 
 return function(code)
     init_state()
 
     state.source = code
+
+    tabetai.preprocessor()
+
     state.source =
         state.source:gsub(
         (tabetai.pattern["format_word"]):rep(3):format("()", tabetai.pattern["match_word"], "()"),
@@ -165,7 +198,7 @@ return function(code)
             state.current = current
 
             tabetai.keywords()
-            if tabetai.operators() then return '' end
+            if tabetai.operators() then return "" end
 
             if not state.chunk then
                 state.chunk = state.current
