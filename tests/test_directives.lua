@@ -1,5 +1,5 @@
 #define "ten" 10
-#include "./tests/include_me.lua"
+#include "./tests/include_me.lua" --include include_me
 
 print(ten)
 
