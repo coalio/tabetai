@@ -99,8 +99,8 @@ local function operators()
     end
 
     if state.current:match(tabetai.pattern["equal_sign"]) and state.ahead:match(tabetai.pattern["left_brace"]) then
-      state.context = "declaration"
-      state.chunk = state.current
+        state.context = "declaration"
+        state.chunk = state.current
     end
 
     if state.current:match(tabetai.pattern["empty_braces"]) then
@@ -120,17 +120,16 @@ local function operators()
 
     if state.current:match(tabetai.pattern["left_brace"]) and state.hold == false and state.skip == false then
         if state.context ~= "" then
-            state.chunk =
-                state.current:gsub(
-                "{",
-                (state.context == "function" or state.context == "condition_case") and " "
-                or (state.context == "loop" and " do " or " then ")
-            )
-
             if state.context == "declaration" then
-              state.level_context[state.level + 1] = "skip_block"
+                state.level_context[state.level + 1] = "skip_block"
             else
-              state.level_context[state.level + 1] = "block"
+                state.level_context[state.level + 1] = "block"
+                state.chunk =
+                    state.current:gsub(
+                        "{",
+                        (state.context == "function" or state.context == "condition_case") and " "
+                        or (state.context == "loop" and " do " or " then ")
+                )
             end
 
             state.context = ""
@@ -141,8 +140,8 @@ local function operators()
 
     if state.current:match(tabetai.pattern["right_brace"]) and state.hold == false and state.skip == false then
         if state.context ~= ""
-          or state.level_context[state.level] == "block"
-          and state.level_context[state.level] ~= "skip_block"
+            or state.level_context[state.level] == "block"
+            and state.level_context[state.level] ~= "skip_block"
         then
             if state.hold == false then
                 state.context = ""
