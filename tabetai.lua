@@ -75,6 +75,7 @@ local function preprocessor()
 
     state.source = state.source:gsub(tabetai.pattern['define_directive'], "")
 end
+
 local function arrow_function()
     local pos = state.to - ((state.pending or ""):len() + (state.pending and state.current or ""):len())
     return (tabetai.pattern["format_function_args"]):format(state.source:match(tabetai.pattern["between_parentheses"], pos))
@@ -124,11 +125,19 @@ local function operators()
                 state.level_context[state.level + 1] = "skip_block"
             else
                 state.level_context[state.level + 1] = "block"
+                local prefix = state.source:sub(state.at - 2, state.at - 2)
+                local suffix = state.source:sub(state.at + 1, state.at + 1)
+                local opening = 
+                    (state.context == "function" or state.context == "condition_case") and ""
+                    or (state.context == "loop" and "do" or "then")
                 state.chunk =
                     state.current:gsub(
                         "{",
-                        (state.context == "function" or state.context == "condition_case") and " "
-                        or (state.context == "loop" and " do " or " then ")
+                        tabetai.pattern["format_word"]:rep(3):format(
+                            (prefix ~= " " and prefix ~= "\n") and " " or "", 
+                            opening,
+                            (suffix ~= " " and suffix ~= "\n") and " " or ""
+                        )
                 )
             end
 
@@ -145,7 +154,18 @@ local function operators()
         then
             if state.hold == false then
                 state.context = ""
-                state.chunk = state.current:gsub("}", " end ")
+                local prefix = state.source:sub(state.at - 2, state.at - 2)
+                local suffix = state.source:sub(state.at + 1, state.at + 1)
+                if state.current:match('%S}') then prefix = '' end
+                state.chunk = 
+                    state.current:gsub(
+                        "}",
+                        tabetai.pattern["format_word"]:rep(3):format(
+                                (prefix ~= " " and prefix ~= "\n") and " " or "", 
+                                "end",
+                                (suffix ~= " " and suffix ~= "\n") and " " or ""
+                        )    
+                )
             end
         end
 
